@@ -10,17 +10,47 @@
 
 	onMount(async () => {
 		try {
-			// Using a CORS proxy to allow the library to fetch metadata in a frontend-only environment
+			// Try primary method: link-preview-js with corsproxy.io
 			const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
 			const data = await getLinkPreview(proxyUrl);
+
+			// Check if the content is a bot detection page (e.g. Cloudflare)
+			const isBotBlock =
+				(data.title &&
+					(data.title.includes('Cloudflare') ||
+						data.title.includes('Attention Required') ||
+						data.title.includes('Just a moment'))) ||
+				(data.description && data.description.includes('Cloudflare'));
+
+			if (isBotBlock) {
+				throw new Error('Bot block detected');
+			}
+
 			metadata = {
 				title: data.title,
 				description: data.description,
 				image: data.images && data.images.length > 0 ? { url: data.images[0] } : null
 			};
 		} catch (e) {
-			console.error('Error fetching link preview:', e);
-			error = true;
+			console.log('Primary preview method failed, trying workaround...', e.message);
+			try {
+				// Workaround: Use Microlink API as fallback for sites that block standard proxies
+				const response = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(url)}`);
+				const result = await response.json();
+
+				if (result.status === 'success' && result.data.title) {
+					metadata = {
+						title: result.data.title,
+						description: result.data.description,
+						image: result.data.image ? { url: result.data.image.url } : null
+					};
+				} else {
+					error = true;
+				}
+			} catch (fallbackError) {
+				console.error('Workaround failed too:', fallbackError);
+				error = true;
+			}
 		} finally {
 			loading = false;
 		}
