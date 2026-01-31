@@ -17,8 +17,6 @@
 	let isSidebarOpen = $state(false);
 	let isEmojiPickerOpen = $state(false);
 
-	const emojis = ['😀', '😂', '😍', '👍', '🔥', '🎉', '❤️', '🤔', '🙌', '✨'];
-
 	async function fetchHistory() {
 		const { data, error } = await supabase
 			.from('messages')
@@ -230,23 +228,16 @@
 					></emoji-picker>
 				</div>
 			{/if}
-			<div class="flex flex-wrap gap-1 mb-2 items-center">
-				{#each emojis as emoji (emoji)}
-					<button onclick={() => addEmoji(emoji)} class="hover:bg-gray-100 dark:hover:bg-gray-700 p-1.5 rounded text-lg">
-						{emoji}
-					</button>
-				{/each}
+			<div class="flex space-x-2 items-center">
 				<button
 					onclick={toggleEmojiPicker}
-					class="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 flex items-center justify-center"
+					class="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 flex items-center justify-center shrink-0"
 					aria-label="Add emoji"
 				>
 					<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
 					</svg>
 				</button>
-			</div>
-			<div class="flex space-x-2">
 				<input
 					type="text"
 					bind:value={newMessage}
