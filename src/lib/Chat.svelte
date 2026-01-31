@@ -12,6 +12,7 @@
 	let typingTimeout;
 	let chatContainer;
 	let channel;
+	let isSidebarOpen = $state(false);
 
 	const emojis = ['😀', '😂', '😍', '👍', '🔥', '🎉', '❤️', '🤔', '🙌', '✨'];
 
@@ -129,24 +130,60 @@
 	function formatTime(ts) {
 		return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 	}
+
+	function toggleSidebar() {
+		isSidebarOpen = !isSidebarOpen;
+	}
 </script>
 
-<div class="flex h-screen bg-gray-100">
+<div class="flex h-screen bg-gray-100 overflow-hidden relative">
+	<!-- Sidebar Overlay -->
+	{#if isSidebarOpen}
+		<button
+			class="fixed inset-0 bg-black/50 z-20 md:hidden"
+			onclick={toggleSidebar}
+			aria-label="Close sidebar"
+		></button>
+	{/if}
+
 	<!-- Sidebar -->
-	<div class="w-64 bg-white border-r flex flex-col">
-		<div class="p-4 border-b font-bold text-lg">Online Users ({onlineUsers.length})</div>
+	<aside
+		class="absolute md:relative w-64 h-full bg-white border-r flex flex-col z-30 transition-transform duration-300 transform {isSidebarOpen
+			? 'translate-x-0'
+			: '-translate-x-full md:translate-x-0'}"
+	>
+		<div class="p-4 border-b font-bold text-lg flex justify-between items-center">
+			<span>Online Users ({onlineUsers.length})</span>
+			<button class="md:hidden text-gray-500" onclick={toggleSidebar}>
+				✕
+			</button>
+		</div>
 		<div class="flex-1 overflow-y-auto p-4 space-y-2">
 			{#each onlineUsers as user (user)}
 				<div class="flex items-center space-x-2">
 					<div class="w-2 h-2 bg-green-500 rounded-full"></div>
-					<span>{user} {user === username ? '(You)' : ''}</span>
+					<span class="truncate">{user} {user === username ? '(You)' : ''}</span>
 				</div>
 			{/each}
 		</div>
-	</div>
+	</aside>
 
 	<!-- Main Chat -->
-	<div class="flex-1 flex flex-col">
+	<div class="flex-1 flex flex-col min-w-0">
+		<!-- Header -->
+		<header class="p-4 bg-white border-b flex items-center md:hidden">
+			<button
+				class="p-2 -ml-2 text-gray-600 hover:text-gray-900"
+				onclick={toggleSidebar}
+				aria-label="Toggle sidebar"
+			>
+				<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+				</svg>
+			</button>
+			<h1 class="ml-2 font-semibold">Chat</h1>
+		</header>
+
 		<!-- Messages -->
 		<div bind:this={chatContainer} class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
 			{#each messages as msg (msg.id || msg.created_at)}
@@ -156,7 +193,7 @@
 						<span class="text-[10px] text-gray-400">{formatTime(msg.created_at)}</span>
 					</div>
 					<div
-						class="mt-1 px-4 py-2 rounded-lg max-w-md {msg.sender === username
+						class="mt-1 px-4 py-2 rounded-lg max-w-[85%] md:max-w-md break-words {msg.sender === username
 							? 'bg-blue-600 text-white'
 							: 'bg-white text-gray-800 shadow-sm'}"
 					>
@@ -174,10 +211,10 @@
 		</div>
 
 		<!-- Input -->
-		<div class="p-4 bg-white border-t">
-			<div class="flex flex-wrap gap-2 mb-2">
+		<footer class="p-4 bg-white border-t">
+			<div class="flex flex-wrap gap-1 mb-2">
 				{#each emojis as emoji (emoji)}
-					<button onclick={() => addEmoji(emoji)} class="hover:bg-gray-100 p-1 rounded">
+					<button onclick={() => addEmoji(emoji)} class="hover:bg-gray-100 p-1.5 rounded text-lg">
 						{emoji}
 					</button>
 				{/each}
@@ -188,15 +225,15 @@
 					bind:value={newMessage}
 					onkeydown={handleKeydown}
 					placeholder="Type a message..."
-					class="flex-1 border border-gray-300 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+					class="flex-1 border border-gray-300 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
 				/>
 				<button
 					onclick={sendMessage}
-					class="bg-blue-600 text-white rounded-full px-6 py-2 hover:bg-blue-700 focus:outline-none"
+					class="bg-blue-600 text-white rounded-full px-5 md:px-6 py-2 hover:bg-blue-700 focus:outline-none text-sm font-medium"
 				>
 					Send
 				</button>
 			</div>
-		</div>
+		</footer>
 	</div>
 </div>

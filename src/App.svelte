@@ -38,10 +38,10 @@
 	{:else if !session}
 		<Login />
 	{:else}
-		<div class="absolute top-4 right-4 z-10">
+		<div class="fixed top-2 right-2 md:top-4 md:right-4 z-40">
 			<button
 				onclick={handleLogout}
-				class="text-xs text-gray-500 hover:text-red-500 bg-white px-2 py-1 rounded shadow-sm"
+				class="text-xs font-medium text-gray-600 hover:text-red-600 bg-white border border-gray-200 px-3 py-1.5 rounded-full shadow-sm"
 			>
 				Logout
 			</button>
