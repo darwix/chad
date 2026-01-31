@@ -203,7 +203,7 @@
 					>
 						{msg.content}
 					</div>
-					{#each getUrls(msg.content) as url (url)}
+					{#each getUrls(msg.content) as url, i (`${url}-${i}`)}
 						<LinkPreview {url} />
 					{/each}
 				</div>
@@ -222,6 +222,7 @@
 			{#if isEmojiPickerOpen}
 				<div class="absolute bottom-full mb-2 left-4 z-50 shadow-xl rounded-lg overflow-hidden border dark:border-gray-700">
 					<emoji-picker
+						class={document.documentElement.classList.contains('dark') ? 'dark' : 'light'}
 						onemoji-click={(e) => {
 							addEmoji(e.detail.unicode);
 							isEmojiPickerOpen = false;

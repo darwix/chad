@@ -8,8 +8,33 @@
 	let loading = $state(true);
 	let error = $state(false);
 
+	const difficultDomains = ['archiveofourown.org'];
+
+	async function fetchWithMicrolink() {
+		const response = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(url)}`);
+		const result = await response.json();
+
+		if (result.status === 'success' && result.data.title) {
+			metadata = {
+				title: result.data.title,
+				description: result.data.description,
+				image: result.data.image ? { url: result.data.image.url } : null
+			};
+			return true;
+		}
+		return false;
+	}
+
 	onMount(async () => {
 		try {
+			const hostname = new URL(url).hostname;
+			const isDifficult = difficultDomains.some((d) => hostname.includes(d));
+
+			if (isDifficult) {
+				const success = await fetchWithMicrolink();
+				if (success) return;
+			}
+
 			// Try primary method: link-preview-js with corsproxy.io
 			const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
 			const data = await getLinkPreview(proxyUrl);
@@ -32,20 +57,11 @@
 				image: data.images && data.images.length > 0 ? { url: data.images[0] } : null
 			};
 		} catch (e) {
-			console.log('Primary preview method failed, trying workaround...', e.message);
+			console.log('Primary preview method failed or skipped, trying workaround...', e.message);
 			try {
-				// Workaround: Use Microlink API as fallback for sites that block standard proxies
-				const response = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(url)}`);
-				const result = await response.json();
-
-				if (result.status === 'success' && result.data.title) {
-					metadata = {
-						title: result.data.title,
-						description: result.data.description,
-						image: result.data.image ? { url: result.data.image.url } : null
-					};
-				} else {
-					error = true;
+				if (!metadata) {
+					const success = await fetchWithMicrolink();
+					if (!success) error = true;
 				}
 			} catch (fallbackError) {
 				console.error('Workaround failed too:', fallbackError);
