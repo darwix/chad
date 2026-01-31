@@ -1,89 +1,107 @@
 <script>
   import { onMount } from 'svelte';
+  import { supabase } from './supabase';
 
   let { username } = $props();
 
   let messages = $state([]);
   let newMessage = $state('');
-  let socket;
   let onlineUsers = $state([]);
   let typingUsers = $state(new Set());
   let typingTimeout;
   let chatContainer;
+  let channel;
 
   const emojis = ['😀', '😂', '😍', '👍', '🔥', '🎉', '❤️', '🤔', '🙌', '✨'];
 
-  function connect() {
-    socket = new WebSocket('ws://localhost:8080/ws');
+  async function fetchHistory() {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50);
 
-    socket.onopen = () => {
-      console.log('Connected to server');
-      // Send initial presence
-      socket.send(JSON.stringify({
-        type: 'presence',
-        sender: username
-      }));
-    };
-
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'chat') {
-        messages = [...messages, data];
-      } else if (data.type === 'presence') {
-        onlineUsers = data.users;
-      } else if (data.type === 'typing') {
-        if (data.sender !== username) {
-          if (data.is_typing) {
-            typingUsers.add(data.sender);
-          } else {
-            typingUsers.delete(data.sender);
-          }
-          typingUsers = new Set(typingUsers); // Trigger reactivity
-        }
-      }
-    };
-
-    socket.onclose = () => {
-      console.log('Disconnected, retrying in 3s...');
-      setTimeout(connect, 3000);
-    };
+    if (error) {
+      console.error('Error fetching history:', error);
+    } else {
+      messages = data.reverse();
+    }
   }
 
-  async function fetchHistory() {
-    try {
-      const res = await fetch('http://localhost:8080/history');
-      if (res.ok) {
-        messages = await res.json();
-      }
-    } catch (e) {
-      console.error('Failed to fetch history', e);
-    }
+  function setupSupabase() {
+    channel = supabase.channel('global-chat', {
+      config: {
+        presence: {
+          key: username,
+        },
+      },
+    });
+
+    // Listen for new messages via Postgres Changes
+    channel
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        (payload) => {
+          messages = [...messages, payload.new];
+        }
+      )
+      // Listen for typing indicators via Broadcast
+      .on('broadcast', { event: 'typing' }, (payload) => {
+        if (payload.payload.sender !== username) {
+          if (payload.payload.is_typing) {
+            typingUsers.add(payload.payload.sender);
+          } else {
+            typingUsers.delete(payload.payload.sender);
+          }
+          typingUsers = new Set(typingUsers);
+        }
+      })
+      // Track Presence (Online Users)
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        onlineUsers = Object.keys(state);
+      })
+      .on('presence', { event: 'join', key: 'key' }, ({ newPresences }) => {
+          // Optional: handle join events specifically
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({ online_at: new Date().toISOString() });
+        }
+      });
   }
 
   onMount(() => {
     fetchHistory();
-    connect();
-    return () => socket?.close();
+    setupSupabase();
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
   });
 
   $effect(() => {
-    // This effect runs whenever messages change
+    // Auto-scroll when messages change
     messages;
     if (chatContainer) {
       chatContainer.scrollTop = chatContainer.scrollHeight;
     }
   });
 
-  function sendMessage() {
-    if (newMessage.trim() && socket) {
+  async function sendMessage() {
+    if (newMessage.trim()) {
       const msg = {
-        type: 'chat',
         sender: username,
         content: newMessage
       };
-      socket.send(JSON.stringify(msg));
-      newMessage = '';
-      sendTyping(false);
+
+      const { error } = await supabase.from('messages').insert([msg]);
+      if (error) {
+        console.error('Error sending message:', error);
+      } else {
+        newMessage = '';
+        sendTyping(false);
+      }
     }
   }
 
@@ -98,12 +116,12 @@
   }
 
   function sendTyping(isTyping) {
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({
-        type: 'typing',
-        sender: username,
-        is_typing: isTyping
-      }));
+    if (channel) {
+      channel.send({
+        type: 'broadcast',
+        event: 'typing',
+        payload: { sender: username, is_typing: isTyping },
+      });
     }
   }
 
@@ -137,11 +155,11 @@
       bind:this={chatContainer}
       class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50"
     >
-      {#each messages as msg (msg.id || msg.timestamp)}
+      {#each messages as msg (msg.id || msg.created_at)}
         <div class="flex flex-col {msg.sender === username ? 'items-end' : 'items-start'}">
           <div class="flex items-baseline space-x-2">
             <span class="text-xs font-semibold text-gray-500">{msg.sender}</span>
-            <span class="text-[10px] text-gray-400">{formatTime(msg.timestamp)}</span>
+            <span class="text-[10px] text-gray-400">{formatTime(msg.created_at)}</span>
           </div>
           <div class="mt-1 px-4 py-2 rounded-lg max-w-md {msg.sender === username ? 'bg-blue-600 text-white' : 'bg-white text-gray-800 shadow-sm'}">
             {msg.content}
@@ -150,7 +168,7 @@
       {/each}
 
       {#if typingUsers.size > 0}
-        <div class="text-xs text-gray-400 italic">
+        <div class="text-xs text-gray-400 italic px-2">
           {Array.from(typingUsers).join(', ')} {typingUsers.size === 1 ? 'is' : 'are'} typing...
         </div>
       {/if}
