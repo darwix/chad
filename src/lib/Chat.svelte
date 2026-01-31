@@ -1,7 +1,9 @@
 <script>
 	import { onMount } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
+	import LinkPreview from './LinkPreview.svelte';
 	import { supabase } from './supabase';
+	import { getUrls, formatTime } from './utils';
 
 	let { username } = $props();
 
@@ -13,6 +15,7 @@
 	let chatContainer;
 	let channel;
 	let isSidebarOpen = $state(false);
+	let isEmojiPickerOpen = $state(false);
 
 	const emojis = ['😀', '😂', '😍', '👍', '🔥', '🎉', '❤️', '🤔', '🙌', '✨'];
 
@@ -73,6 +76,7 @@
 	onMount(() => {
 		fetchHistory();
 		setupSupabase();
+		import('emoji-picker-element');
 		return () => {
 			if (channel) supabase.removeChannel(channel);
 		};
@@ -127,16 +131,16 @@
 		newMessage += emoji;
 	}
 
-	function formatTime(ts) {
-		return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-	}
-
 	function toggleSidebar() {
 		isSidebarOpen = !isSidebarOpen;
 	}
+
+	function toggleEmojiPicker() {
+		isEmojiPickerOpen = !isEmojiPickerOpen;
+	}
 </script>
 
-<div class="flex h-screen bg-gray-100 overflow-hidden relative">
+<div class="flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden relative transition-colors duration-200">
 	<!-- Sidebar Overlay -->
 	{#if isSidebarOpen}
 		<button
@@ -148,13 +152,13 @@
 
 	<!-- Sidebar -->
 	<aside
-		class="absolute md:relative w-64 h-full bg-white border-r flex flex-col z-30 transition-transform duration-300 transform {isSidebarOpen
+		class="absolute md:relative w-64 h-full bg-white dark:bg-gray-800 border-r dark:border-gray-700 flex flex-col z-30 transition-transform duration-300 transform {isSidebarOpen
 			? 'translate-x-0'
 			: '-translate-x-full md:translate-x-0'}"
 	>
-		<div class="p-4 border-b font-bold text-lg flex justify-between items-center">
+		<div class="p-4 border-b dark:border-gray-700 font-bold text-lg flex justify-between items-center dark:text-white">
 			<span>Online Users ({onlineUsers.length})</span>
-			<button class="md:hidden text-gray-500" onclick={toggleSidebar}>
+			<button class="md:hidden text-gray-500 dark:text-gray-400" onclick={toggleSidebar}>
 				✕
 			</button>
 		</div>
@@ -162,7 +166,7 @@
 			{#each onlineUsers as user (user)}
 				<div class="flex items-center space-x-2">
 					<div class="w-2 h-2 bg-green-500 rounded-full"></div>
-					<span class="truncate">{user} {user === username ? '(You)' : ''}</span>
+					<span class="truncate dark:text-gray-300">{user} {user === username ? '(You)' : ''}</span>
 				</div>
 			{/each}
 		</div>
@@ -171,9 +175,9 @@
 	<!-- Main Chat -->
 	<div class="flex-1 flex flex-col min-w-0">
 		<!-- Header -->
-		<header class="p-4 bg-white border-b flex items-center md:hidden">
+		<header class="p-4 bg-white dark:bg-gray-800 border-b dark:border-gray-700 flex items-center md:hidden">
 			<button
-				class="p-2 -ml-2 text-gray-600 hover:text-gray-900"
+				class="p-2 -ml-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
 				onclick={toggleSidebar}
 				aria-label="Toggle sidebar"
 			>
@@ -181,29 +185,32 @@
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
 				</svg>
 			</button>
-			<h1 class="ml-2 font-semibold">Chat</h1>
+			<h1 class="ml-2 font-semibold dark:text-white">Chat</h1>
 		</header>
 
 		<!-- Messages -->
-		<div bind:this={chatContainer} class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+		<div bind:this={chatContainer} class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900">
 			{#each messages as msg (msg.id || msg.created_at)}
 				<div class="flex flex-col {msg.sender === username ? 'items-end' : 'items-start'}">
 					<div class="flex items-baseline space-x-2">
-						<span class="text-xs font-semibold text-gray-500">{msg.sender}</span>
-						<span class="text-[10px] text-gray-400">{formatTime(msg.created_at)}</span>
+						<span class="text-xs font-semibold text-gray-500 dark:text-gray-400">{msg.sender}</span>
+						<span class="text-[10px] text-gray-400 dark:text-gray-500">{formatTime(msg.created_at)}</span>
 					</div>
 					<div
 						class="mt-1 px-4 py-2 rounded-lg max-w-[85%] md:max-w-md break-words {msg.sender === username
 							? 'bg-blue-600 text-white'
-							: 'bg-white text-gray-800 shadow-sm'}"
+							: 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 shadow-sm'}"
 					>
 						{msg.content}
 					</div>
+					{#each getUrls(msg.content) as url (url)}
+						<LinkPreview {url} />
+					{/each}
 				</div>
 			{/each}
 
 			{#if typingUsers.size > 0}
-				<div class="text-xs text-gray-400 italic px-2">
+				<div class="text-xs text-gray-400 dark:text-gray-500 italic px-2">
 					{Array.from(typingUsers).join(', ')}
 					{typingUsers.size === 1 ? 'is' : 'are'} typing...
 				</div>
@@ -211,13 +218,32 @@
 		</div>
 
 		<!-- Input -->
-		<footer class="p-4 bg-white border-t">
-			<div class="flex flex-wrap gap-1 mb-2">
+		<footer class="p-4 bg-white dark:bg-gray-800 border-t dark:border-gray-700 relative">
+			{#if isEmojiPickerOpen}
+				<div class="absolute bottom-full mb-2 left-4 z-50 shadow-xl rounded-lg overflow-hidden border dark:border-gray-700">
+					<emoji-picker
+						onemoji-click={(e) => {
+							addEmoji(e.detail.unicode);
+							isEmojiPickerOpen = false;
+						}}
+					></emoji-picker>
+				</div>
+			{/if}
+			<div class="flex flex-wrap gap-1 mb-2 items-center">
 				{#each emojis as emoji (emoji)}
-					<button onclick={() => addEmoji(emoji)} class="hover:bg-gray-100 p-1.5 rounded text-lg">
+					<button onclick={() => addEmoji(emoji)} class="hover:bg-gray-100 dark:hover:bg-gray-700 p-1.5 rounded text-lg">
 						{emoji}
 					</button>
 				{/each}
+				<button
+					onclick={toggleEmojiPicker}
+					class="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 flex items-center justify-center"
+					aria-label="Add emoji"
+				>
+					<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+					</svg>
+				</button>
 			</div>
 			<div class="flex space-x-2">
 				<input
@@ -225,7 +251,7 @@
 					bind:value={newMessage}
 					onkeydown={handleKeydown}
 					placeholder="Type a message..."
-					class="flex-1 border border-gray-300 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+					class="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
 				/>
 				<button
 					onclick={sendMessage}
