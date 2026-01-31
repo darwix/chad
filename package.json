@@ -33,6 +33,7 @@
 	"dependencies": {
 		"@supabase/supabase-js": "^2.93.3",
 		"@tailwindcss/vite": "^4.1.18",
-		"emoji-picker-element": "^1.28.1"
+		"emoji-picker-element": "^1.28.1",
+		"link-preview-js": "^4.0.0"
 	}
 }

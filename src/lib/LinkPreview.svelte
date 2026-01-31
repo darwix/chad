@@ -1,5 +1,6 @@
 <script>
 	import { onMount } from 'svelte';
+	import { getLinkPreview } from 'link-preview-js';
 
 	let { url } = $props();
 
@@ -7,42 +8,16 @@
 	let loading = $state(true);
 	let error = $state(false);
 
-	const isImage = (url) => {
-		return /\.(jpg|jpeg|png|webp|avif|gif)$/i.test(url);
-	};
-
-	const getYouTubeId = (url) => {
-		const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-		const match = url.match(regExp);
-		return match && match[2].length === 11 ? match[2] : null;
-	};
-
 	onMount(async () => {
-		if (isImage(url)) {
-			metadata = { image: { url }, title: 'Image' };
-			loading = false;
-			return;
-		}
-
-		const ytId = getYouTubeId(url);
-		if (ytId) {
-			metadata = {
-				image: { url: `https://img.youtube.com/vi/${ytId}/mqdefault.jpg` },
-				title: 'YouTube Video',
-				url: url
-			};
-			loading = false;
-			return;
-		}
-
 		try {
-			const res = await fetch(`https://api.microlink.io?url=${encodeURIComponent(url)}`);
-			if (res.ok) {
-				const { data } = await res.json();
-				metadata = data;
-			} else {
-				error = true;
-			}
+			// Using a CORS proxy to allow the library to fetch metadata in a frontend-only environment
+			const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+			const data = await getLinkPreview(proxyUrl);
+			metadata = {
+				title: data.title,
+				description: data.description,
+				image: data.images && data.images.length > 0 ? { url: data.images[0] } : null
+			};
 		} catch (e) {
 			console.error('Error fetching link preview:', e);
 			error = true;
