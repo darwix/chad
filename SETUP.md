@@ -50,3 +50,15 @@ cd frontend
 npm install
 npm run dev
 ```
+
+## 6. GitHub Actions & Code Review
+The project includes automated code review tools:
+- **Linting**: Runs on every PR and uses **Reviewdog** to post comments directly on the code.
+- **AI Code Review**: Uses OpenAI to provide detailed feedback on PRs.
+
+### Setting up AI Code Review
+1. Go to your GitHub repository **Settings > Secrets and variables > Actions**.
+2. Add a **New repository secret**:
+   - Name: `OPENAI_API_KEY`
+   - Value: Your OpenAI API key.
+3. The next time you open a Pull Request, the AI will automatically review your changes!
